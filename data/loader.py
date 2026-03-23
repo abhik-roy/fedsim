@@ -49,20 +49,32 @@ def get_dataset(dataset_name: str, data_dir: str | None = None, **kwargs):
         test = torchvision.datasets.FashionMNIST(data_dir, train=False, download=True, transform=transform)
 
     elif dataset_name == "cifar10":
-        transform = transforms.Compose([
+        train_transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
         ])
-        train = torchvision.datasets.CIFAR10(data_dir, train=True, download=True, transform=transform)
-        test = torchvision.datasets.CIFAR10(data_dir, train=False, download=True, transform=transform)
+        test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+        ])
+        train = torchvision.datasets.CIFAR10(data_dir, train=True, download=True, transform=train_transform)
+        test = torchvision.datasets.CIFAR10(data_dir, train=False, download=True, transform=test_transform)
 
     elif dataset_name == "cifar100":
-        transform = transforms.Compose([
+        train_transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
         ])
-        train = torchvision.datasets.CIFAR100(data_dir, train=True, download=True, transform=transform)
-        test = torchvision.datasets.CIFAR100(data_dir, train=False, download=True, transform=transform)
+        test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        train = torchvision.datasets.CIFAR100(data_dir, train=True, download=True, transform=train_transform)
+        test = torchvision.datasets.CIFAR100(data_dir, train=False, download=True, transform=test_transform)
 
     elif dataset_name == "svhn":
         transform = transforms.Compose([

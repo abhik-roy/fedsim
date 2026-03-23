@@ -318,6 +318,11 @@ with st.sidebar:
         alpha = st.slider("Dirichlet α", 0.01, 10.0, alpha, 0.01,
                           help="Lower values = more heterogeneous data across clients. 0.1 = extreme skew, 1.0 = moderate, 10.0 = nearly IID")
 
+    val_split = st.slider("Validation Split", 0.0, 0.3, 0.1, 0.05,
+                           help="Fraction of training data held out for server-side validation. "
+                                "Per-round evaluation uses this split — test set is reserved for final evaluation only. "
+                                "Set to 0 for legacy behavior (uses test set during training).")
+
     with st.expander("FL Parameters", expanded=True):
         c1, c2 = st.columns(2)
         num_clients = c1.slider("Clients", 2, 20, _pd.get("num_clients", DEFAULT_NUM_CLIENTS),
@@ -410,18 +415,16 @@ with st.sidebar:
             if _mparams:
                 plugin_params.setdefault("metrics", {}).update(_mparams)
 
-    st.markdown("### Strategies")
-    _preset_strats = _pd.get("strategies")
-    strategy_keys = []
-    for display_name, key in strategy_choices.items():
-        default_on = key in (_preset_strats if _preset_strats else DEFAULT_STRATEGIES)
-        if st.checkbox(display_name, value=default_on, key=f"strat_{key}"):
-            strategy_keys.append(key)
-            _sp = _render_plugin_params("strategies", key)
-            if _sp:
-                plugin_params.setdefault("strategies", {})[key] = _sp
-
-    # Reputation params now handled by plugin PARAMS system (custom/strategies/reputation.py)
+    with st.expander("Strategies", expanded=True):
+        _preset_strats = _pd.get("strategies")
+        strategy_keys = []
+        for display_name, key in strategy_choices.items():
+            default_on = key in (_preset_strats if _preset_strats else DEFAULT_STRATEGIES)
+            if st.checkbox(display_name, value=default_on, key=f"strat_{key}"):
+                strategy_keys.append(key)
+                _sp = _render_plugin_params("strategies", key)
+                if _sp:
+                    plugin_params.setdefault("strategies", {})[key] = _sp
 
     with st.expander("Attack Configuration", expanded=False):
         _p_aidx = _aidx
@@ -662,7 +665,7 @@ if _should_run:
             model_name=model_name, dataset_name=dataset_name,
             num_clients=num_clients, num_rounds=num_rounds,
             local_epochs=local_epochs, learning_rate=learning_rate,
-            partition_type=partition_type, alpha=alpha,
+            partition_type=partition_type, alpha=alpha, val_split=val_split,
             strategies=strategy_keys, seed=seed,
             attack=AttackConfig(attack_type=attack_type, malicious_fraction=malicious_fraction,
                                 attack_params=attack_params, schedule_type=schedule_type,

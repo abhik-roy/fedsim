@@ -103,6 +103,7 @@ class SimulationConfig:
     learning_rate: float = 0.01
     partition_type: str = "non_iid"
     alpha: float = 0.5
+    val_split: float = 0.1            # fraction of training data held out for server validation
     strategies: list[str] = field(default_factory=lambda: ["fedavg"])
     batch_size: int = 32
     seed: int = 42
@@ -114,7 +115,6 @@ class SimulationConfig:
     optimizer: str = "sgd"
     loss_function: str = "cross_entropy"
     weight_decay: float = 0.0
-    val_split: float = 0.0            # fraction of training data used for validation
     eval_frequency: int = 1           # evaluate global model every N rounds
     # Flower-parity: client sampling
     fraction_fit: float = 1.0
@@ -147,6 +147,9 @@ class SimulationResult:
     anomaly_summary: dict = field(default_factory=dict)
     strategy_scores_history: list[dict[int, float]] = field(default_factory=list)
     custom_metrics: dict = field(default_factory=dict)
+    # Final test-set evaluation (held out during training)
+    test_accuracy: float = 0.0
+    test_loss: float = 0.0
 
 
 @dataclass
@@ -769,9 +772,22 @@ def _setup_data(config: SimulationConfig) -> dict:
 
     dataset_info = _build_dataset_info(config.dataset_name)
 
+    # Split training data into train + validation
+    val_split = config.val_split
+    if val_split > 0:
+        val_size = int(len(train_dataset) * val_split)
+        train_size = len(train_dataset) - val_size
+        g = torch.Generator().manual_seed(config.seed)
+        train_data, val_data = torch.utils.data.random_split(
+            train_dataset, [train_size, val_size], generator=g
+        )
+    else:
+        train_data = train_dataset
+        val_data = None
+
     # Partition training data — keep clean copies for dynamic data poisoning
     clean_partitions = partition_dataset(
-        train_dataset, config.num_clients,
+        train_data, config.num_clients,
         config.partition_type, config.alpha, config.seed,
     )
 
@@ -818,6 +834,14 @@ def _setup_data(config: SimulationConfig) -> dict:
     pin = config.pin_memory and torch.cuda.is_available()
     testloader = DataLoader(test_dataset, batch_size=128, shuffle=False, pin_memory=pin)
 
+    # Validation loader — used for per-round evaluation (not test set)
+    # When val_split > 0, per-round eval uses validation data (no data leakage).
+    # When val_split == 0, falls back to test set (legacy behavior).
+    if val_data is not None:
+        valloader = DataLoader(val_data, batch_size=128, shuffle=False, pin_memory=pin)
+    else:
+        valloader = testloader  # Legacy fallback
+
     # Build clean trainloaders (always available) — seeded for reproducibility
     clean_trainloaders = []
     for i, p in enumerate(clean_partitions):
@@ -846,6 +870,7 @@ def _setup_data(config: SimulationConfig) -> dict:
         "model_attack_type": model_attack_type,
         "model_attack_params": model_attack_params,
         "testloader": testloader,
+        "valloader": valloader,
         "clean_trainloaders": clean_trainloaders,
         "poisoned_trainloaders": poisoned_trainloaders,
         "eval_model": eval_model,
@@ -868,7 +893,7 @@ def _run_client_round(
     model_attack_type = setup["model_attack_type"]
     model_attack_params = setup["model_attack_params"]
     clean_trainloaders = setup["clean_trainloaders"]
-    testloader = setup["testloader"]
+    evalloader = setup["valloader"]  # Use validation set for per-client eval
 
     is_malicious = cid in malicious_clients
     attack_applied = False
@@ -943,9 +968,9 @@ def _run_client_round(
     else:
         status = "malicious_idle"
 
-    # Per-client accuracy (quick eval on subset of test data)
+    # Per-client accuracy (quick eval on subset of validation data)
     client_acc = _evaluate_client_accuracy(
-        eval_model, updated_params, testloader, device,
+        eval_model, updated_params, evalloader, device,
         model_plugin=model_plugin,
         model_plugin_kwargs=config.plugin_params.get("models", {}),
     )
@@ -955,7 +980,7 @@ def _run_client_round(
 
 def _process_round_results(
     client_results, num_samples_list, global_params, global_model,
-    config, strategy, rnd, malicious_clients, anomaly_tracker, testloader, device,
+    config, strategy, rnd, malicious_clients, anomaly_tracker, evalloader, device,
     model_plugin=None, model_plugin_kwargs=None,
     selected_cids=None,
 ):
@@ -1013,8 +1038,8 @@ def _process_round_results(
     if hasattr(strategy, 'get_reputations'):
         reputation_scores = strategy.get_reputations()
 
-    # Evaluate global model
-    eval_metrics = _evaluate_model(global_model, testloader, device,
+    # Evaluate global model on validation set
+    eval_metrics = _evaluate_model(global_model, evalloader, device,
                                     loss_name=config.loss_function,
                                     model_plugin=model_plugin,
                                     model_plugin_kwargs=model_plugin_kwargs)
@@ -1173,6 +1198,7 @@ def run_simulation(
     malicious_clients = setup["malicious_clients"]
     poisoned_trainloaders = setup["poisoned_trainloaders"]
     testloader = setup["testloader"]
+    valloader = setup["valloader"]
     eval_model = setup["eval_model"]
     template_model = setup["template_model"]
 
@@ -1215,8 +1241,8 @@ def run_simulation(
         scores_hist = []
         custom_metrics_acc = {}  # {metric_key: [per_round_values]}
 
-        # Evaluate initial model
-        eval_metrics = _evaluate_model(global_model, testloader, device,
+        # Evaluate initial model on validation set (not test set — avoids data leakage)
+        eval_metrics = _evaluate_model(global_model, valloader, device,
                                         loss_name=config.loss_function,
                                         model_plugin=model_plugin,
                                         model_plugin_kwargs=model_plugin_kwargs)
@@ -1331,7 +1357,7 @@ def run_simulation(
 
             round_data = _process_round_results(
                 client_results, num_samples_list, global_params, global_model,
-                config, strategy, rnd, malicious_clients, anomaly_tracker, testloader, device,
+                config, strategy, rnd, malicious_clients, anomaly_tracker, valloader, device,
                 model_plugin=model_plugin, model_plugin_kwargs=model_plugin_kwargs,
                 selected_cids=selected_cids,
             )
@@ -1376,7 +1402,7 @@ def run_simulation(
                     if plugin_display not in config.active_metrics:
                         continue
                     try:
-                        metric_result = mmod.compute(global_model, testloader, device, **metrics_kwargs)
+                        metric_result = mmod.compute(global_model, valloader, device, **metrics_kwargs)
                         for mk, mv in metric_result.items():
                             round_custom_metrics[f"{plugin_display}/{mk}"] = mv
                     except Exception as exc:
@@ -1428,6 +1454,13 @@ def run_simulation(
                 ))
 
         elapsed = time.time() - start_time
+
+        # Final evaluation on held-out test set (never seen during training)
+        test_metrics = _evaluate_model(global_model, testloader, device,
+                                        loss_name=config.loss_function,
+                                        model_plugin=model_plugin,
+                                        model_plugin_kwargs=model_plugin_kwargs)
+
         results.append(SimulationResult(
             strategy_name=strategy_name,
             round_losses=round_losses,
@@ -1441,6 +1474,8 @@ def run_simulation(
             anomaly_summary=anomaly_tracker.summary(),
             strategy_scores_history=scores_hist,
             custom_metrics=custom_metrics_acc,
+            test_accuracy=test_metrics.get("accuracy", 0.0),
+            test_loss=test_metrics.get("loss", 0.0),
         ))
 
     return results
