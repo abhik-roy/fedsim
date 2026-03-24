@@ -43,7 +43,8 @@ def test_krum_returns_exclusion_metadata():
 
 def test_reputation_returns_exclusion_metadata():
     init_params = _make_initial_params()
-    strategy = ReputationStrategy(num_clients=5, selection_fraction=0.6,
+    strategy = ReputationStrategy(num_clients=5, warmup_rounds=0,
+                                  trust_exclusion_threshold=0.15,
                                   initial_parameters=init_params,
                                   min_fit_clients=5, min_available_clients=5,
                                   min_evaluate_clients=5)
@@ -53,8 +54,8 @@ def test_reputation_returns_exclusion_metadata():
     assert "excluded_clients" in metrics
     included = json.loads(metrics["included_clients"])
     excluded = json.loads(metrics["excluded_clients"])
-    assert len(included) == 3  # 60% of 5 = 3
-    assert len(excluded) == 2
+    assert len(included) + len(excluded) == 5
+    assert len(included) >= 1
 
 
 def test_bulyan_returns_exclusion_metadata():

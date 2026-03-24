@@ -38,11 +38,12 @@ def test_fedavg_no_exclusion():
 
 
 def test_reputation_exclusion_tracking():
-    """Reputation should exclude some clients each round."""
+    """Reputation should exclude malicious clients after warm-up rounds."""
     config = SimulationConfig(
         model_name="cnn", dataset_name="mnist",
-        num_clients=5, num_rounds=3, local_epochs=1,
+        num_clients=5, num_rounds=5, local_epochs=1,
         strategies=["reputation"],
+        reputation_warmup_rounds=2,
         attack=AttackConfig(attack_type="weight_spiking",
                             malicious_fraction=0.4,
                             attack_params={"magnitude": 100.0, "spike_fraction": 0.3}),
@@ -50,10 +51,14 @@ def test_reputation_exclusion_tracking():
     )
     results = run_simulation(config)
     r = results[0]
-    assert r.anomaly_summary["total_rounds"] == 3
-    # Reputation selects 60% = 3 of 5 clients, so 2 are always excluded
-    for round_data in r.anomaly_history:
-        assert len(round_data["excluded"]) == 2
+    assert r.anomaly_summary["total_rounds"] == 5
+    # During warm-up (rounds 1-2), no clients should be excluded
+    for round_data in r.anomaly_history[:2]:
+        assert len(round_data["excluded"]) == 0
+    # After warm-up, malicious clients should start being excluded
+    post_warmup = r.anomaly_history[2:]
+    any_excluded = any(len(rd["excluded"]) > 0 for rd in post_warmup)
+    assert any_excluded, "Reputation should exclude some clients after warm-up"
 
 
 def test_no_attack_baseline_anomaly():

@@ -178,9 +178,12 @@ class SimulationConfig:
     batch_size: int = 32
     seed: int = 42
     attack: AttackConfig = field(default_factory=AttackConfig)
-    reputation_truth_threshold: float = 0.7
-    reputation_selection_fraction: float = 0.6
+    reputation_truth_threshold: float = 0.5
+    reputation_selection_fraction: float = 0.6  # legacy, ignored
     reputation_initial_reputation: float = 0.5
+    reputation_trust_exclusion_threshold: float = 0.15
+    reputation_warmup_rounds: int = 3
+    reputation_smoothing_beta: float = 0.85
     # Training customization
     optimizer: str = "sgd"
     loss_function: str = "cross_entropy"
@@ -387,8 +390,12 @@ def _validate_compatibility(config: SimulationConfig) -> tuple[list[str], list[s
 
 
 def _get_strategy(name, initial_parameters, num_clients, num_malicious=0,
-                  reputation_truth_threshold=0.7, reputation_selection_fraction=0.6,
-                  reputation_initial_reputation=0.5, plugin_kwargs=None,
+                  reputation_truth_threshold=0.5, reputation_selection_fraction=0.6,
+                  reputation_initial_reputation=0.5,
+                  reputation_trust_exclusion_threshold=0.15,
+                  reputation_warmup_rounds=3,
+                  reputation_smoothing_beta=0.85,
+                  plugin_kwargs=None,
                   fraction_fit=1.0, fraction_evaluate=1.0,
                   min_fit_clients=2, min_evaluate_clients=2, min_available_clients=2):
     # Backward compat: "reputation" maps to the plugin
@@ -397,8 +404,10 @@ def _get_strategy(name, initial_parameters, num_clients, num_malicious=0,
         # Merge legacy config fields into plugin_kwargs
         plugin_kwargs = dict(plugin_kwargs or {})
         plugin_kwargs.setdefault("truth_threshold", reputation_truth_threshold)
-        plugin_kwargs.setdefault("selection_fraction", reputation_selection_fraction)
+        plugin_kwargs.setdefault("trust_exclusion_threshold", reputation_trust_exclusion_threshold)
         plugin_kwargs.setdefault("initial_reputation", reputation_initial_reputation)
+        plugin_kwargs.setdefault("warmup_rounds", reputation_warmup_rounds)
+        plugin_kwargs.setdefault("smoothing_beta", reputation_smoothing_beta)
 
     common = {
         "fraction_fit": fraction_fit,
@@ -1359,6 +1368,9 @@ def run_simulation(
             reputation_truth_threshold=config.reputation_truth_threshold,
             reputation_selection_fraction=config.reputation_selection_fraction,
             reputation_initial_reputation=config.reputation_initial_reputation,
+            reputation_trust_exclusion_threshold=config.reputation_trust_exclusion_threshold,
+            reputation_warmup_rounds=config.reputation_warmup_rounds,
+            reputation_smoothing_beta=config.reputation_smoothing_beta,
             plugin_kwargs=config.plugin_params.get("strategies", {}),
             fraction_fit=config.fraction_fit,
             fraction_evaluate=config.fraction_evaluate,

@@ -928,7 +928,9 @@ with tab_results:
                 raise TypeError(type(o))
             config_dict = {k: v for k, v in vars(cfg).items()}
             # Remove legacy reputation fields from export
-            for key in ["reputation_truth_threshold", "reputation_selection_fraction", "reputation_initial_reputation"]:
+            for key in ["reputation_truth_threshold", "reputation_selection_fraction",
+                         "reputation_initial_reputation", "reputation_trust_exclusion_threshold",
+                         "reputation_warmup_rounds", "reputation_smoothing_beta"]:
                 config_dict.pop(key, None)
             dc2.download_button("Export Config", json.dumps(config_dict, indent=2, default=_ser),
                                 file_name="fl_config.json", mime="application/json")
