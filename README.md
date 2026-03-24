@@ -55,12 +55,6 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-1. Select a model (CNN, MLP, ResNet-18, DenseNet-121) and dataset (MNIST, CIFAR-10, Fashion-MNIST, etc.)
-2. Choose aggregation strategies (checkboxes)
-3. Configure an attack (optional)
-4. Click **Run Simulation**
-5. Watch live training curves, inspect anomaly detection, and export results
-
 ### Run a Scripted Experiment
 
 ```python
