@@ -1,22 +1,10 @@
-# FEDSIM
+# FEDSIM - A Flexible and Lightweight Federated Learning Simulation  Framework
 
-**Federated Learning Simulation & Visualization Framework**
-
-FEDSIM is a visualization-first platform for simulating, benchmarking, and analyzing federated learning systems under adversarial conditions. It provides a Streamlit dashboard for interactive exploration and a Python scripting API for reproducible experiments.
-
-Built for FL researchers, FEDSIM enables systematic comparison of aggregation strategies, attack models, and defense mechanisms — all in one framework.
+FEDSIM is a visualization-first platform for simulating, benchmarking, and analyzing federated learning systems under adversarial conditions. It provides a Streamlit dashboard for interactive exploration and a Python scripting API for reproducible experiments. Built for FL researchers, FEDSIM enables systematic comparison of aggregation strategies, attack models, and defense mechanisms, it is meant to be customizable and lightweight.
 
 ---
 
 ## Features
-
-### Simulation Engine
-- **7 aggregation strategies** — FedAvg, Krum, Median, Trimmed Mean, Bulyan, RFA, and Reputation (trust-based client selection with asymmetric temporal updates)
-- **6 attack models** — Label flipping, Gaussian noise, token replacement (data poisoning); weight spiking, gradient scaling, Byzantine perturbation (model poisoning)
-- **Non-IID data** — Dirichlet-based heterogeneous partitioning with tunable concentration (alpha)
-- **Anomaly detection** — TP/FP/TN/FN tracking for client exclusion decisions, removal F1/precision/recall per round
-- **Parallel client training** — ThreadPoolExecutor with CUDA stream support for GPU acceleration
-- **Mixed precision (AMP)** — Float16 training on tensor core GPUs for ~1.5x speedup
 
 ### Dashboard
 - **Live training visualization** — Loss and accuracy curves updated in real-time
@@ -58,12 +46,7 @@ pip install -r requirements.txt
 ```bash
 streamlit run app.py
 ```
-
-1. Select a model (CNN, MLP, ResNet-18, DenseNet-121) and dataset (MNIST, CIFAR-10, Fashion-MNIST, etc.)
-2. Choose aggregation strategies (checkboxes)
-3. Configure an attack (optional)
-4. Click **Run Simulation**
-5. Watch live training curves, inspect anomaly detection, and export results
+<img width="1116" height="1086" alt="Screenshot From 2026-03-23 22-38-23" src="https://github.com/user-attachments/assets/478c9840-1ec7-40ae-a073-981a4bcde7de">
 
 ### Run a Scripted Experiment
 
