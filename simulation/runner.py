@@ -1,4 +1,5 @@
 import copy
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -108,6 +109,49 @@ def _get_batch_size(batch):
         return len(batch)
     else:
         return 1
+
+
+def _estimate_per_client_gpu_bytes(model, use_amp=False):
+    """Estimate GPU memory needed per client during training.
+
+    Accounts for model weights, gradients, optimizer state (SGD+momentum),
+    activations, and buffer overhead (e.g. BatchNorm running stats).
+    """
+    param_bytes = sum(p.numel() * p.element_size() for p in model.parameters())
+    buf_bytes = sum(b.numel() * b.element_size() for b in model.buffers())
+
+    # Weights + gradients
+    mem = param_bytes * 2
+    # Optimizer state: SGD with momentum stores one extra copy of params
+    mem += param_bytes
+    # Activations: ~6x params for typical CNNs
+    activation_factor = 6.0
+    if use_amp:
+        activation_factor *= 0.6
+    mem += int(param_bytes * activation_factor)
+    mem += buf_bytes
+
+    return mem
+
+
+def _max_gpu_concurrent(model, device, use_amp=False):
+    """Calculate how many clients can train on GPU concurrently without OOM.
+
+    Queries actual GPU capacity and current allocation, reserves 15% for
+    PyTorch allocator fragmentation, then divides by per-client estimate.
+    """
+    if device.type != "cuda":
+        return 1  # No GPU parallelism benefit on CPU
+
+    per_client = _estimate_per_client_gpu_bytes(model, use_amp)
+    if per_client <= 0:
+        return 1
+
+    total_mem = torch.cuda.get_device_properties(device).total_memory
+    allocated = torch.cuda.memory_allocated(device)
+    available = int(total_mem * 0.85) - allocated
+
+    return max(1, available // per_client)
 
 
 @dataclass
@@ -989,6 +1033,10 @@ def _run_client_round(
             import warnings
             warnings.warn(f"torch.compile failed ({e}). Falling back to eager mode.")
             config._compile_failed = True
+            # Free the failed compiled model before creating fallback
+            del client_model
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
             client_model = copy.deepcopy(template_model)
             _set_model_params(client_model, global_params)
             updated_params, train_metrics = _train_client(
@@ -1130,8 +1178,9 @@ def _run_clients_parallel(
     """Train selected clients, optionally in parallel.
 
     When max_parallel_clients=1, preserves exact sequential behavior.
-    When >1, uses ThreadPoolExecutor with per-thread eval models and
-    optional CUDA streams for GPU parallelism.
+    When >1, uses ThreadPoolExecutor with a GPU semaphore to limit
+    concurrent GPU-resident models.  All threads stay alive for CPU
+    parallelism (data loading, numpy work); only GPU access is gated.
 
     Returns:
         client_results: list[NDArrays] — ordered matching selected_cids
@@ -1144,28 +1193,57 @@ def _run_clients_parallel(
     malicious_clients = setup["malicious_clients"]
     clean_partitions = setup["clean_partitions"]
 
+    # Calculate GPU concurrency limit
+    if device.type == "cuda" and max_workers > 1:
+        gpu_slots = _max_gpu_concurrent(
+            template_model, device,
+            use_amp=config.use_amp,
+        )
+        gpu_slots = max(1, min(gpu_slots, max_workers))
+        gpu_semaphore = threading.Semaphore(gpu_slots)
+    else:
+        gpu_semaphore = None
+
     def _train_one(cid):
         """Train a single client. Thread-safe: all mutable state is local."""
-        stream = torch.cuda.Stream(device=device) if device.type == "cuda" else None
-        ctx = torch.cuda.stream(stream) if stream else nullcontext()
-        with ctx:
-            thread_eval_model = copy.deepcopy(template_model)
-            updated_params, client_loss, client_acc, status, attack_applied = (
-                _run_client_round(
-                    cid, config, setup, global_params, attack_active, rnd,
-                    template_model, thread_eval_model, device,
-                    round_poisoned_loaders,
-                    model_plugin=model_plugin,
-                    strategy_plugin=strategy_plugin,
+        if gpu_semaphore:
+            gpu_semaphore.acquire()
+        thread_eval_model = None
+        try:
+            stream = torch.cuda.Stream(device=device) if device.type == "cuda" else None
+            ctx = torch.cuda.stream(stream) if stream else nullcontext()
+            with ctx:
+                thread_eval_model = copy.deepcopy(template_model)
+                updated_params, client_loss, client_acc, status, attack_applied = (
+                    _run_client_round(
+                        cid, config, setup, global_params, attack_active, rnd,
+                        template_model, thread_eval_model, device,
+                        round_poisoned_loaders,
+                        model_plugin=model_plugin,
+                        strategy_plugin=strategy_plugin,
+                    )
                 )
-            )
-        if stream:
-            stream.synchronize()
-        return cid, updated_params, client_loss, client_acc, status, attack_applied
+            if stream:
+                stream.synchronize()
+            return cid, updated_params, client_loss, client_acc, status, attack_applied
+        finally:
+            # Free GPU memory immediately so the next waiting thread can proceed
+            if thread_eval_model is not None and device.type == "cuda":
+                thread_eval_model.cpu()
+                del thread_eval_model
+                torch.cuda.empty_cache()
+            if gpu_semaphore:
+                gpu_semaphore.release()
 
     # --- Sequential path (max_parallel_clients == 1) ---
     if max_workers <= 1:
-        thread_eval_model = copy.deepcopy(template_model)
+        # Only deepcopy when torch.compile is active (it wraps the model).
+        # Otherwise _run_client_round reuses eval_model directly, so the
+        # deepcopy would be wasted memory.
+        if config.compile_model and not getattr(config, '_compile_failed', False):
+            thread_eval_model = copy.deepcopy(template_model)
+        else:
+            thread_eval_model = template_model
         client_results = []
         num_samples_list = []
         statuses = {}
@@ -1537,5 +1615,11 @@ def run_simulation(
             test_accuracy=test_metrics.get("accuracy", 0.0),
             test_loss=test_metrics.get("loss", 0.0),
         ))
+
+        # Free GPU memory before next strategy to prevent OOM accumulation
+        global_model.cpu()
+        del global_model, strategy
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
     return results

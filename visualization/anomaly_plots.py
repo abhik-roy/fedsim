@@ -111,17 +111,15 @@ def plot_exclusion_timeline(anomaly_history, num_clients, num_rounds, malicious_
         hovertemplate="Client: %{y}<br>Round: %{x}<br>%{text}<extra></extra>",
     ))
 
+    layout = fedsim_layout_defaults()
+    layout["yaxis"].update(autorange="reversed")
     fig.update_layout(
-        **fedsim_layout_defaults(),
+        **layout,
         title="Client Exclusion Timeline",
         xaxis_title="Round", yaxis_title="Client",
-        yaxis=dict(autorange="reversed", gridcolor="rgba(45,49,64,0.6)",
-                   title_font=dict(color=COLOR_TEXT_MUTED),
-                   tickfont=dict(color=COLOR_TEXT_MUTED)),
         template="plotly_dark",
         height=max(250, 40 * num_clients + 100),
         margin=dict(t=50, b=80, l=70, r=20),
-        # Color legend as annotations
         annotations=[
             dict(text="<b>TN</b> Benign+Included", x=0.0, y=-0.15, xref="paper", yref="paper",
                  showarrow=False, font=dict(color=_COLOR_TN, size=11)),
@@ -163,15 +161,14 @@ def plot_confusion_summary(anomaly_summary):
         xgap=4, ygap=4,
         hoverinfo="skip",
     ))
+    layout = fedsim_layout_defaults()
+    layout["xaxis"].update(side="bottom")
     fig.update_layout(
-        **fedsim_layout_defaults(),
+        **layout,
         title="Cumulative Confusion Matrix",
         template="plotly_dark",
         height=350,
         margin=dict(t=50, b=40, l=80, r=20),
-        xaxis=dict(side="bottom", gridcolor="rgba(45,49,64,0.6)",
-                   title_font=dict(color=COLOR_TEXT_MUTED),
-                   tickfont=dict(color=COLOR_TEXT_MUTED)),
     )
     return fig
 

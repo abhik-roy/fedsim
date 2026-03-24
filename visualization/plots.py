@@ -227,7 +227,20 @@ def plot_client_grid(grid_data: list[list[str]], num_clients: int, num_rounds: i
     """
     # Build the numeric matrix and text matrix for the heatmap
     # Rows = clients (bottom to top), Columns = rounds
-    status_to_num = {"benign": 0, "attacked": 1, "malicious_idle": 2, "empty": 3, "idle": 3}
+    # 6 states: benign(0), attacked(1), malicious_idle(2), idle/empty(3), excluded(4), false_positive(5)
+    from visualization import COLOR_BORDER
+    _COLOR_EXCLUDED = "#D4A76A"      # warm sand — attacked but caught by strategy
+    _COLOR_FALSE_POS = "#B088C4"     # muted lavender — benign but wrongly excluded
+    status_to_num = {
+        "benign": 0, "attacked": 1, "malicious_idle": 2,
+        "empty": 3, "idle": 3,
+        "excluded": 4, "false_positive": 5,
+    }
+    status_labels = {
+        "benign": "Benign", "attacked": "ATTACKED",
+        "malicious_idle": "Malicious (idle)", "idle": "Not selected", "empty": "",
+        "excluded": "EXCLUDED", "false_positive": "Excluded (FP)",
+    }
     z = []
     text = []
 
@@ -240,30 +253,25 @@ def plot_client_grid(grid_data: list[list[str]], num_clients: int, num_rounds: i
             else:
                 status = "empty"
             row.append(status_to_num.get(status, 3))
-
-            if status == "benign":
-                text_row.append("Benign")
-            elif status == "attacked":
-                text_row.append("ATTACKED")
-            elif status == "malicious_idle":
-                text_row.append("Malicious (idle)")
-            elif status == "idle":
-                text_row.append("Not selected")
-            else:
-                text_row.append("")
+            text_row.append(status_labels.get(status, ""))
         z.append(row)
         text.append(text_row)
 
     colorscale = [
-        [0.0, COLOR_BENIGN],
-        [0.33, COLOR_BENIGN],
-        [0.33, COLOR_ATTACKED],
-        [0.66, COLOR_ATTACKED],
-        [0.66, COLOR_MALICIOUS_IDLE],
-        [0.83, COLOR_MALICIOUS_IDLE],
-        [0.83, COLOR_EMPTY],
-        [1.0, COLOR_EMPTY],
+        [0.0, COLOR_BENIGN],           # 0 = benign
+        [0.2, COLOR_BENIGN],
+        [0.2, COLOR_ATTACKED],         # 1 = attacked (included in aggregation)
+        [0.4, COLOR_ATTACKED],
+        [0.4, COLOR_MALICIOUS_IDLE],   # 2 = malicious but idle
+        [0.6, COLOR_MALICIOUS_IDLE],
+        [0.6, COLOR_EMPTY],            # 3 = idle / not selected
+        [0.7, COLOR_EMPTY],
+        [0.7, _COLOR_EXCLUDED],        # 4 = attacked AND excluded by strategy (TP)
+        [0.85, _COLOR_EXCLUDED],
+        [0.85, _COLOR_FALSE_POS],      # 5 = benign but excluded (FP)
+        [1.0, _COLOR_FALSE_POS],
     ]
+    _zmax = 5
 
     fig = go.Figure(data=go.Heatmap(
         z=z,
@@ -274,7 +282,7 @@ def plot_client_grid(grid_data: list[list[str]], num_clients: int, num_rounds: i
         y=[f"C{c}" for c in range(num_clients)],
         colorscale=colorscale,
         zmin=0,
-        zmax=3,
+        zmax=_zmax,
         showscale=False,
         xgap=2,
         ygap=2,

@@ -122,24 +122,14 @@ class ReputationStrategy(FedAvg):
         for idx, (cid, _) in enumerate(results):
             cid_to_idx[cid] = idx
 
-        if self.current_round <= 1:
-            eligible = set(cid_to_idx.keys())
-        else:
-            rep_threshold = self.initial_reputation * 0.3
-            eligible = {cid for cid in cid_to_idx
-                        if self.reputations.get(cid, self.initial_reputation) > rep_threshold}
-
-        if not eligible:
-            best_cid = max(cid_to_idx.keys(),
-                           key=lambda c: self.reputations.get(c, 0.0))
-            return [results[cid_to_idx[best_cid]]]
-
         num_participating = len(cid_to_idx)
         num_to_select = max(1, int(num_participating * self.selection_fraction))
-        num_to_select = min(num_to_select, len(eligible))
 
+        # Rank all participating clients by reputation and take the top fraction.
+        # No hard eligibility cutoff — selection_fraction alone controls how many
+        # clients are included, and ranking ensures the best-reputed are chosen.
         ranked = sorted(
-            eligible,
+            cid_to_idx.keys(),
             key=lambda c: self.reputations.get(c, 0.0),
             reverse=True,
         )

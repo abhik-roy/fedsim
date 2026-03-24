@@ -738,7 +738,7 @@ if _should_run:
                 '<div class="grid-legend">'
                 '<span><span class="dot" style="background:#7FB5A0"></span>Benign</span>'
                 '<span><span class="dot" style="background:#D4726A"></span>Attacked</span>'
-                '<span><span class="dot" style="background:#D4A76A"></span>Excluded (TP)</span>'
+                '<span><span class="dot" style="background:#D4A76A"></span>Excluded (caught)</span>'
                 '<span><span class="dot" style="background:#6B7280"></span>Idle</span>'
                 '</div>', unsafe_allow_html=True,
             )
