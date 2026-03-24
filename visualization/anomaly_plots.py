@@ -112,11 +112,11 @@ def plot_exclusion_timeline(anomaly_history, num_clients, num_rounds, malicious_
     ))
 
     layout = fedsim_layout_defaults()
-    layout["yaxis"].update(autorange="reversed")
+    layout["yaxis"].update(autorange="reversed", title="Client")
+    layout["xaxis"].update(title="Round")
     fig.update_layout(
         **layout,
         title="Client Exclusion Timeline",
-        xaxis_title="Round", yaxis_title="Client",
         template="plotly_dark",
         height=max(250, 40 * num_clients + 100),
         margin=dict(t=50, b=80, l=70, r=20),
