@@ -1380,6 +1380,17 @@ def run_simulation(
         )
         strategy_plugin = getattr(strategy, '_fedsim_plugin_module', None)
 
+        # Allow strategies to configure themselves with server-side resources
+        # (e.g., validation data for computing reference updates).
+        if hasattr(strategy, 'configure'):
+            strategy.configure(
+                valloader=valloader,
+                model_name=config.model_name,
+                dataset_name=config.dataset_name,
+                learning_rate=config.learning_rate,
+                device=device,
+            )
+
         round_losses = []
         round_accuracies = []
         trust_hist = {}
