@@ -1,8 +1,7 @@
 # FEDSIM - A Flexible and Lightweight Federated Learning Simulation  Framework
 
-FEDSIM is a visualization-first platform for simulating, benchmarking, and analyzing federated learning systems under adversarial conditions. It provides a Streamlit dashboard for interactive exploration and a Python scripting API for reproducible experiments.
+FEDSIM is a visualization-first platform for simulating, benchmarking, and analyzing federated learning systems under adversarial conditions. It provides a Streamlit dashboard for interactive exploration and a Python scripting API for reproducible experiments. Built for FL researchers, FEDSIM enables systematic comparison of aggregation strategies, attack models, and defense mechanisms, it is meant to be customizable and lightweight.
 
-Built for FL researchers, FEDSIM enables systematic comparison of aggregation strategies, attack models, and defense mechanisms, it is meant to be customizable and lightweight. 
 ---
 
 ## Features
