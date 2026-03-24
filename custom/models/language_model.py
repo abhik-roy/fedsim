@@ -62,6 +62,9 @@ class SmallLM(nn.Module):
         nn.init.normal_(self.pos_embed.weight, std=0.02)
         nn.init.normal_(self.output_proj.weight, std=0.02)
         nn.init.zeros_(self.output_proj.bias)
+        # Restore padding_idx=0 embedding to zeros after init
+        with torch.no_grad():
+            self.token_embed.weight[0].zero_()
 
     def _generate_causal_mask(self, seq_len, device):
         """Generate upper-triangular causal attention mask."""

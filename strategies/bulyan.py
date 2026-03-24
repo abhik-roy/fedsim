@@ -71,8 +71,10 @@ class BulyanStrategy(FedAvg):
             # Krum score: sum of distances to nearest (n_rem - f - 2) neighbors
             n_rem = len(remaining)
             neighbors = max(1, n_rem - f - 2)
-            k = min(neighbors + 1, n_rem - 1)
-            partitioned = np.partition(distances, k, axis=1)[:, 1:k + 1]
+            # Set diagonal to inf so self-distance is never among the smallest
+            np.fill_diagonal(distances, np.inf)
+            k = min(neighbors, n_rem - 1)
+            partitioned = np.partition(distances, k, axis=1)[:, :k]
             scores = partitioned.sum(axis=1)
 
             # Select best (lowest Krum score)
@@ -84,15 +86,8 @@ class BulyanStrategy(FedAvg):
         selected_weights = [weights[i] for i in selected_indices]
         n_sel = len(selected_weights)
         # Trim f values from each end (or as many as possible)
+        # When f=0 (no malicious clients), trim=0 is correct (plain average)
         trim = min(f, (n_sel - 1) // 2)
-        if n_sel >= 3 and trim < 1:
-            import warnings
-            warnings.warn(
-                f"Bulyan Stage 2: trim reduced to 0 with n_sel={n_sel}, f={f}. "
-                f"Forcing trim=1 to avoid plain averaging.",
-                stacklevel=2,
-            )
-            trim = max(1, trim)
 
         aggregated = []
         for layer_idx in range(len(selected_weights[0])):

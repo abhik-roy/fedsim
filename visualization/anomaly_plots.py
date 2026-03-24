@@ -2,6 +2,31 @@
 import numpy as np
 import plotly.graph_objects as go
 
+from visualization import (
+    COLOR_BENIGN,
+    COLOR_ATTACKED,
+    COLOR_TEXT,
+    COLOR_TEXT_MUTED,
+    COLOR_BG_DARK,
+    COLOR_BG_SURFACE,
+    COLOR_BORDER,
+    fedsim_layout_defaults,
+)
+
+# Muted tones for anomaly detection metrics
+_COLOR_F1 = "#7FB5A0"       # sage/mint (F1)
+_COLOR_PRECISION = "#6A9FD4" # slate blue (Precision)
+_COLOR_RECALL = "#D4726A"    # muted coral (Recall)
+
+# Confusion matrix colors (muted)
+_COLOR_TN = "#3A3F4D"       # dark blue-gray
+_COLOR_TP = "#5A9E87"       # deeper mint
+_COLOR_FP = "#D4A76A"       # warm sand
+_COLOR_FN = "#D4726A"       # muted coral
+
+# Threshold / reference line
+_COLOR_THRESHOLD = "#D4A76A"  # warm sand
+
 
 def plot_removal_f1_over_rounds(anomaly_history, num_rounds):
     """Line chart: Precision, Recall, F1 per round with improved styling."""
@@ -15,36 +40,36 @@ def plot_removal_f1_over_rounds(anomaly_history, num_rounds):
     # F1 with area fill (plotted first so it's behind)
     fig.add_trace(go.Scatter(
         x=rounds, y=f1s, mode="lines+markers",
-        name="F1 Score", line=dict(color="#2ecc71", width=3),
+        name="F1 Score", line=dict(color=_COLOR_F1, width=3),
         marker=dict(size=8, symbol="star"),
-        fill="tozeroy", fillcolor="rgba(46, 204, 113, 0.1)",
+        fill="tozeroy", fillcolor="rgba(127, 181, 160, 0.1)",
     ))
     fig.add_trace(go.Scatter(
         x=rounds, y=precisions, mode="lines+markers",
-        name="Precision", line=dict(color="#3498db", width=2),
+        name="Precision", line=dict(color=_COLOR_PRECISION, width=2),
         marker=dict(size=7, symbol="circle"),
     ))
     fig.add_trace(go.Scatter(
         x=rounds, y=recalls, mode="lines+markers",
-        name="Recall", line=dict(color="#e74c3c", width=2),
+        name="Recall", line=dict(color=_COLOR_RECALL, width=2),
         marker=dict(size=7, symbol="diamond"),
     ))
 
     # Reference line at 0.5
-    fig.add_hline(y=0.5, line_dash="dot", line_color="#555",
+    fig.add_hline(y=0.5, line_dash="dot", line_color=COLOR_BORDER,
                   annotation_text="Chance", annotation_position="bottom right",
-                  annotation_font_color="#666")
+                  annotation_font_color=COLOR_TEXT_MUTED)
 
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Anomaly Removal Performance",
         xaxis_title="Round", yaxis_title="Score",
-        yaxis=dict(range=[0, 1.05], gridcolor="#333", gridwidth=1),
-        xaxis=dict(gridcolor="#333", gridwidth=1),
         template="plotly_dark",
         height=350,
         margin=dict(t=40, b=50, l=60, r=20),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
+    fig.update_yaxes(range=[0, 1.05])
     return fig
 
 
@@ -68,10 +93,10 @@ def plot_exclusion_timeline(anomaly_history, num_clients, num_rounds, malicious_
                 z[cid, rnd_idx] = 0; text[cid, rnd_idx] = ""
 
     colorscale = [
-        [0.0, "#34495e"], [0.25, "#34495e"],   # TN dark blue-gray
-        [0.25, "#27ae60"], [0.50, "#27ae60"],   # TP green
-        [0.50, "#e67e22"], [0.75, "#e67e22"],   # FP orange
-        [0.75, "#c0392b"], [1.0, "#c0392b"],    # FN red
+        [0.0, _COLOR_TN], [0.25, _COLOR_TN],    # TN dark blue-gray
+        [0.25, _COLOR_TP], [0.50, _COLOR_TP],    # TP deeper mint
+        [0.50, _COLOR_FP], [0.75, _COLOR_FP],    # FP warm sand
+        [0.75, _COLOR_FN], [1.0, _COLOR_FN],     # FN muted coral
     ]
     z_normalized = z / 3.0
 
@@ -81,28 +106,31 @@ def plot_exclusion_timeline(anomaly_history, num_clients, num_rounds, malicious_
         y=[f"C{c}{'*' if c in malicious_clients else ''}" for c in range(num_clients)],
         text=text.tolist(),
         texttemplate="%{text}",
-        textfont=dict(size=10, color="white"),
+        textfont=dict(size=10, color=COLOR_TEXT),
         xgap=2, ygap=2,
         hovertemplate="Client: %{y}<br>Round: %{x}<br>%{text}<extra></extra>",
     ))
 
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Client Exclusion Timeline",
         xaxis_title="Round", yaxis_title="Client",
-        yaxis=dict(autorange="reversed"),
+        yaxis=dict(autorange="reversed", gridcolor="rgba(45,49,64,0.6)",
+                   title_font=dict(color=COLOR_TEXT_MUTED),
+                   tickfont=dict(color=COLOR_TEXT_MUTED)),
         template="plotly_dark",
         height=max(250, 40 * num_clients + 100),
         margin=dict(t=50, b=80, l=70, r=20),
         # Color legend as annotations
         annotations=[
             dict(text="<b>TN</b> Benign+Included", x=0.0, y=-0.15, xref="paper", yref="paper",
-                 showarrow=False, font=dict(color="#34495e", size=11)),
+                 showarrow=False, font=dict(color=_COLOR_TN, size=11)),
             dict(text="<b>TP</b> Malicious+Excluded", x=0.3, y=-0.15, xref="paper", yref="paper",
-                 showarrow=False, font=dict(color="#27ae60", size=11)),
+                 showarrow=False, font=dict(color=_COLOR_TP, size=11)),
             dict(text="<b>FP</b> Benign+Excluded", x=0.6, y=-0.15, xref="paper", yref="paper",
-                 showarrow=False, font=dict(color="#e67e22", size=11)),
+                 showarrow=False, font=dict(color=_COLOR_FP, size=11)),
             dict(text="<b>FN</b> Malicious+Included", x=0.9, y=-0.15, xref="paper", yref="paper",
-                 showarrow=False, font=dict(color="#c0392b", size=11)),
+                 showarrow=False, font=dict(color=_COLOR_FN, size=11)),
         ],
     )
     return fig
@@ -116,7 +144,7 @@ def plot_confusion_summary(anomaly_summary):
     fn = anomaly_summary.get("cumulative_fn", 0)
     total = tp + fp + tn + fn or 1
 
-    # Color: TP=green, TN=green, FP=orange, FN=red
+    # Color: TP=mint, TN=mint, FP=sand, FN=coral
     # Use a custom z for coloring: 1=correct (TP/TN), 0=error (FP/FN)
     # Rows ordered bottom-to-top (Plotly default): row 0=Benign (bottom), row 1=Malicious (top)
     z_color = [[0, 1], [1, 0]]
@@ -128,19 +156,22 @@ def plot_confusion_summary(anomaly_summary):
 
     fig = go.Figure(data=go.Heatmap(
         z=z_color, text=text, texttemplate="%{text}",
-        textfont=dict(size=16, color="white"),
+        textfont=dict(size=16, color=COLOR_TEXT),
         x=["Excluded", "Included"], y=["Benign", "Malicious"],
-        colorscale=[[0, "#c0392b"], [0.5, "#e67e22"], [1, "#27ae60"]],
+        colorscale=[[0, _COLOR_FN], [0.5, _COLOR_FP], [1, _COLOR_TP]],
         showscale=False, zmin=0, zmax=1,
         xgap=4, ygap=4,
         hoverinfo="skip",
     ))
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Cumulative Confusion Matrix",
         template="plotly_dark",
         height=350,
         margin=dict(t=50, b=40, l=80, r=20),
-        xaxis=dict(side="bottom"),
+        xaxis=dict(side="bottom", gridcolor="rgba(45,49,64,0.6)",
+                   title_font=dict(color=COLOR_TEXT_MUTED),
+                   tickfont=dict(color=COLOR_TEXT_MUTED)),
     )
     return fig
 
@@ -150,30 +181,32 @@ def plot_client_score_distribution(client_scores, malicious_clients, threshold=N
     if not client_scores:
         fig = go.Figure()
         fig.add_annotation(text="No client scores available", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#888"))
-        fig.update_layout(height=300, template="plotly_dark")
+                           x=0.5, y=0.5, showarrow=False,
+                           font=dict(size=14, color=COLOR_TEXT_MUTED))
+        fig.update_layout(**fedsim_layout_defaults(), height=300, template="plotly_dark")
         return fig
 
     cids = sorted(client_scores.keys())
     scores = [client_scores[c] for c in cids]
-    colors = ["#c0392b" if c in malicious_clients else "#27ae60" for c in cids]
+    colors = [COLOR_ATTACKED if c in malicious_clients else COLOR_BENIGN for c in cids]
     labels = [f"C{c}{'*' if c in malicious_clients else ''}" for c in cids]
     status = ["Malicious" if c in malicious_clients else "Benign" for c in cids]
 
     fig = go.Figure(data=go.Bar(
         x=labels, y=scores,
-        marker=dict(color=colors, opacity=0.85, line=dict(width=1, color="#444")),
+        marker=dict(color=colors, opacity=0.85, line=dict(width=1, color=COLOR_BORDER)),
         hovertemplate="Client %{x}<br>Score: %{y:.4f}<br>Status: %{customdata}<extra></extra>",
         customdata=status,
     ))
 
     if threshold is not None:
-        fig.add_hline(y=threshold, line_dash="dash", line_color="#f39c12",
+        fig.add_hline(y=threshold, line_dash="dash", line_color=_COLOR_THRESHOLD,
                       annotation_text=f"Threshold: {threshold:.2f}",
                       annotation_position="top right",
-                      annotation_font_color="#f39c12")
+                      annotation_font_color=_COLOR_THRESHOLD)
 
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Client Strategy Scores",
         xaxis_title="Client", yaxis_title="Score",
         template="plotly_dark",

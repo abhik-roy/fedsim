@@ -106,17 +106,17 @@ def generate_html_report(config, results, title=None):
             anomaly_fig.add_trace(go.Scatter(
                 x=rounds, y=[h["f1"] for h in r.anomaly_history],
                 mode="lines+markers", name="F1",
-                line=dict(color="#2ecc71", width=3),
+                line=dict(color="#7FB5A0", width=3),
             ))
             anomaly_fig.add_trace(go.Scatter(
                 x=rounds, y=[h["precision"] for h in r.anomaly_history],
                 mode="lines+markers", name="Precision",
-                line=dict(color="#3498db"),
+                line=dict(color="#6A9FD4"),
             ))
             anomaly_fig.add_trace(go.Scatter(
                 x=rounds, y=[h["recall"] for h in r.anomaly_history],
                 mode="lines+markers", name="Recall",
-                line=dict(color="#e74c3c"),
+                line=dict(color="#D4726A"),
             ))
             anomaly_fig.update_layout(
                 title=f"Anomaly Detection — {r.strategy_name}",
@@ -168,18 +168,18 @@ def generate_html_report(config, results, title=None):
             background: #0E1117; color: #FAFAFA; padding: 2rem;
             max-width: 1200px; margin: 0 auto;
         }}
-        h1 {{ color: #6C63FF; margin-bottom: 0.5rem; font-size: 1.8rem; }}
+        h1 {{ color: #7FB5A0; margin-bottom: 0.5rem; font-size: 1.8rem; }}
         h2 {{ color: #FAFAFA; margin: 2rem 0 1rem; font-size: 1.3rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }}
         .meta {{ color: #888; font-size: 0.85rem; margin-bottom: 2rem; }}
         table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
         th, td {{ padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid #333; }}
-        th {{ background: #1A1D23; color: #6C63FF; font-weight: 600; }}
+        th {{ background: #1C1F26; color: #7FB5A0; font-weight: 600; }}
         td {{ color: #CCC; font-size: 0.9rem; }}
-        tr:hover {{ background: #1A1D23; }}
+        tr:hover {{ background: #1C1F26; }}
         .chart {{ margin: 1.5rem 0; }}
         .footer {{ margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #333; color: #666; font-size: 0.8rem; }}
         details {{ margin: 1rem 0; }}
-        summary {{ cursor: pointer; color: #6C63FF; font-weight: 600; }}
+        summary {{ cursor: pointer; color: #7FB5A0; font-weight: 600; }}
     </style>
 </head>
 <body>

@@ -6,11 +6,18 @@ from sklearn.decomposition import PCA
 
 from visualization import (
     COLOR_BENIGN,
+    COLOR_ATTACKED,
+    COLOR_TEXT,
+    COLOR_TEXT_MUTED,
+    COLOR_BG_DARK,
+    COLOR_BG_SURFACE,
+    COLOR_BORDER,
     STRATEGY_COLORS,
     THEME,
+    fedsim_layout_defaults,
 )
 
-COLOR_MALICIOUS = "#e74c3c"
+COLOR_MALICIOUS = COLOR_ATTACKED
 
 # Fallback ordered color list for index-based lookups
 _STRATEGY_COLOR_LIST = list(STRATEGY_COLORS.values())
@@ -35,12 +42,14 @@ def plot_accuracy_surface(results, num_rounds: int, metric_name: str = "Accuracy
     for i, r in enumerate(results):
         # Use custom metric values instead of round_accuracies for non-classification
         y_values = r.round_accuracies
+        x_offset = 0  # round_accuracies includes round 0 (pre-training)
         if metric_name != "Accuracy" and r.custom_metrics:
             for mk, vals in r.custom_metrics.items():
                 if mk.startswith("eval/") and mk != "eval/loss" and isinstance(vals, list):
                     y_values = vals
+                    x_offset = 1  # custom metrics start at round 1, not round 0
                     break
-        rounds = list(range(len(y_values)))
+        rounds = list(range(x_offset, x_offset + len(y_values)))
         fig.add_trace(go.Scatter(
             x=rounds,
             y=y_values,
@@ -51,6 +60,7 @@ def plot_accuracy_surface(results, num_rounds: int, metric_name: str = "Accuracy
         ))
 
     layout_kwargs = dict(
+        **fedsim_layout_defaults(),
         title=f"Strategy {metric_name} Comparison",
         xaxis_title="Round",
         yaxis_title=metric_name,
@@ -59,7 +69,13 @@ def plot_accuracy_surface(results, num_rounds: int, metric_name: str = "Accuracy
         margin=dict(t=40, b=60, l=60, r=20),
     )
     if metric_name == "Accuracy":
-        layout_kwargs["yaxis"] = dict(range=[0, 1.05])
+        layout_kwargs["yaxis"] = dict(
+            range=[0, 1.05],
+            gridcolor="rgba(45,49,64,0.6)",
+            gridwidth=1,
+            title_font=dict(color=COLOR_TEXT_MUTED),
+            tickfont=dict(color=COLOR_TEXT_MUTED),
+        )
     fig.update_layout(**layout_kwargs)
     return fig
 
@@ -81,8 +97,9 @@ def plot_trust_reputation_landscape(
     if not score_history:
         fig = go.Figure()
         fig.add_annotation(text="No data available", xref="paper", yref="paper",
-                          x=0.5, y=0.5, showarrow=False, font=dict(size=16))
-        fig.update_layout(height=500, template=THEME)
+                          x=0.5, y=0.5, showarrow=False,
+                          font=dict(size=16, color=COLOR_TEXT_MUTED))
+        fig.update_layout(**fedsim_layout_defaults(), height=500, template=THEME)
         return fig
 
     cids = sorted(score_history.keys())
@@ -99,11 +116,12 @@ def plot_trust_reputation_landscape(
         for cid in cids
     ]
 
+    # Muted colorscale matching the new palette
     colorscale = [
-        [0.0, "#e74c3c"],
-        [0.3, "#f39c12"],
-        [0.7, "#f1c40f"],
-        [1.0, "#2ecc71"],
+        [0.0, "#D4726A"],   # muted coral (low scores)
+        [0.3, "#D4A76A"],   # warm sand
+        [0.7, "#B5C98A"],   # soft olive-green
+        [1.0, "#7FB5A0"],   # sage/mint (high scores)
     ]
 
     fig = go.Figure(data=[go.Heatmap(
@@ -111,12 +129,14 @@ def plot_trust_reputation_landscape(
         y=client_labels,
         z=z_matrix,
         colorscale=colorscale,
-        colorbar=dict(title=score_type),
+        colorbar=dict(title=score_type, tickfont=dict(color=COLOR_TEXT_MUTED),
+                      titlefont=dict(color=COLOR_TEXT_MUTED)),
         zmin=0,
         zmax=1,
     )])
 
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title=f"{score_type} Scores by Client \u00d7 Round",
         xaxis_title="Round",
         yaxis_title="Client",
@@ -141,9 +161,9 @@ def plot_attack_impact(benchmark_results: dict, strategy_names: list[str],
         fig.add_annotation(
             text="Click 'Run Full Benchmark' to populate",
             xref="paper", yref="paper", x=0.5, y=0.5,
-            showarrow=False, font=dict(size=16, color="#888"),
+            showarrow=False, font=dict(size=16, color=COLOR_TEXT_MUTED),
         )
-        fig.update_layout(height=420, template=THEME)
+        fig.update_layout(**fedsim_layout_defaults(), height=420, template=THEME)
         return fig
 
     # Build Z matrix: rows=attacks, cols=strategies
@@ -161,12 +181,15 @@ def plot_attack_impact(benchmark_results: dict, strategy_names: list[str],
         z=z_matrix,
         text=text_matrix,
         texttemplate="%{text}",
+        textfont=dict(color=COLOR_TEXT),
         colorscale="RdYlGn",
         zmin=0, zmax=1,
-        colorbar=dict(title="Accuracy"),
+        colorbar=dict(title="Accuracy", tickfont=dict(color=COLOR_TEXT_MUTED),
+                      titlefont=dict(color=COLOR_TEXT_MUTED)),
     )])
 
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Attack Impact Matrix",
         xaxis_title="Strategy",
         yaxis_title="Attack",
@@ -193,8 +216,8 @@ def plot_client_pca(
         fig = go.Figure()
         fig.add_annotation(text="Need at least 2 clients for PCA",
                           xref="paper", yref="paper", x=0.5, y=0.5,
-                          showarrow=False, font=dict(size=16))
-        fig.update_layout(height=420, template=THEME)
+                          showarrow=False, font=dict(size=16, color=COLOR_TEXT_MUTED))
+        fig.update_layout(**fedsim_layout_defaults(), height=420, template=THEME)
         return fig
 
     cids = sorted(client_params.keys())
@@ -238,7 +261,7 @@ def plot_client_pca(
                 size=[sizes[i] for i in benign_idx],
                 color=COLOR_BENIGN,
                 opacity=0.85,
-                line=dict(width=1, color="#333"),
+                line=dict(width=1, color=COLOR_BORDER),
             ),
             hovertext=[f"Client {cids[i]}" for i in benign_idx],
             hoverinfo="text",
@@ -257,7 +280,7 @@ def plot_client_pca(
                 size=[sizes[i] for i in malicious_idx],
                 color=COLOR_MALICIOUS,
                 opacity=0.85,
-                line=dict(width=1, color="#333"),
+                line=dict(width=1, color=COLOR_BORDER),
             ),
             hovertext=[f"Client {cids[i]} (malicious)" for i in malicious_idx],
             hoverinfo="text",
@@ -265,6 +288,7 @@ def plot_client_pca(
 
     explained = pca.explained_variance_ratio_
     fig.update_layout(
+        **fedsim_layout_defaults(),
         title="Client Parameter PCA",
         xaxis_title=f"PC1 ({explained[0]:.1%})" if len(explained) > 0 else "PC1",
         yaxis_title=f"PC2 ({explained[1]:.1%})" if len(explained) > 1 else "PC2",

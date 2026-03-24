@@ -111,11 +111,10 @@ class TestWeightSpiking:
 
 
 class TestGradientScaling:
-    def test_gradient_scaling_multiplies(self):
+    def test_gradient_scaling_requires_global_params(self):
         params = _make_params()
-        scaled = apply_gradient_scaling(params, scale_factor=2.0)
-        # Without global params, it should just multiply by scale_factor
-        np.testing.assert_allclose(scaled[0], params[0] * 2.0, rtol=1e-6)
+        with pytest.raises(ValueError, match="requires global_parameters"):
+            apply_gradient_scaling(params, scale_factor=2.0)
 
     def test_gradient_scaling_with_global_params(self):
         local = _make_params(seed=1)

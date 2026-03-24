@@ -34,7 +34,7 @@ class TextCNN(nn.Module):
     """TextCNN with multiple parallel convolutional filters."""
 
     def __init__(self, vocab_size, embed_dim, num_classes, num_filters=100,
-                 kernel_sizes=(3, 4, 5), dropout=0.3):
+                 kernel_sizes=(3, 4, 5), dropout=0.5):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
 

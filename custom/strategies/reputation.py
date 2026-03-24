@@ -134,7 +134,8 @@ class ReputationStrategy(FedAvg):
                            key=lambda c: self.reputations.get(c, 0.0))
             return [results[cid_to_idx[best_cid]]]
 
-        num_to_select = max(1, int(self.num_clients * self.selection_fraction))
+        num_participating = len(cid_to_idx)
+        num_to_select = max(1, int(num_participating * self.selection_fraction))
         num_to_select = min(num_to_select, len(eligible))
 
         ranked = sorted(
@@ -184,6 +185,9 @@ class ReputationStrategy(FedAvg):
             aggregated.append(
                 (layer_sum / total_examples).astype(weights_list[0][layer_idx].dtype)
             )
+
+        # Update global_params so truth values are computed as deltas next round
+        self.global_params = np.concatenate([a.flatten() for a in aggregated])
 
         selected_cids = {cid for cid, _ in selected}
         all_cids = set(all_weights.keys())

@@ -22,7 +22,7 @@ class TrimmedMean(FedAvg):
         # Extract weights from results
         weights = [fit_res.parameters for _, fit_res in results]
         num_clients = len(weights)
-        trim_count = max(1, int(num_clients * self.beta))
+        trim_count = int(num_clients * self.beta)
         # Ensure at least 1 client survives after trimming both ends
         max_trim = (num_clients - 1) // 2
         trim_count = min(trim_count, max_trim)
@@ -46,7 +46,7 @@ class TrimmedMean(FedAvg):
             flat_client = np.concatenate([weights[i][layer_idx].flatten() for layer_idx in range(len(weights[i]))])
             dist = float(np.linalg.norm(flat_client - flat_agg))
             client_distances.append(dist)
-        max_dist = max(client_distances) if max(client_distances) > 1e-10 else 1.0
+        max_dist = max(client_distances) if client_distances and max(client_distances) > 1e-10 else 1.0
         for i in range(num_clients):
             client_scores_dict[str(cids[i])] = float(1.0 - client_distances[i] / max_dist)
 

@@ -12,7 +12,7 @@ if _project_root not in sys.path:
 # ── App Constants ────────────────────────────────────────────────────
 APP_NAME = "FEDSIM"
 APP_TAGLINE = "Federated Learning Simulation & Visualization Framework"
-APP_ACCENT = "#6C63FF"
+APP_ACCENT = "#7FB5A0"
 
 import streamlit as st
 import pandas as pd
@@ -96,18 +96,19 @@ st.markdown("""
         display: flex; align-items: baseline; gap: 12px;
         margin-bottom: 0.25rem;
     }
-    .app-header h1 { margin: 0; font-size: 1.8rem; font-weight: 700; color: #6C63FF; letter-spacing: -0.02em; }
-    .app-header span { font-size: 0.85rem; color: #888; }
+    .app-header h1 { margin: 0; font-size: 1.8rem; font-weight: 700; color: #7FB5A0; letter-spacing: -0.02em; }
+    .app-header span { font-size: 0.85rem; color: #8B919E; }
 
     /* Status bar */
     .status-bar {
-        background: #1A1D23; border: 1px solid #2A2D35; border-radius: 6px;
+        background: #1C1F26; border: 1px solid #2D3140; border-radius: 8px;
         padding: 8px 16px; font-family: 'SF Mono', 'Fira Code', monospace;
-        font-size: 0.82rem; color: #B0B0B0; margin-bottom: 8px;
+        font-size: 0.82rem; color: #C8CCD4; margin-bottom: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
-    .status-bar strong { color: #6C63FF; }
-    .status-bar .acc { color: #2ecc71; }
-    .status-bar .loss { color: #e74c3c; }
+    .status-bar strong { color: #7FB5A0; }
+    .status-bar .acc { color: #7FB5A0; }
+    .status-bar .loss { color: #D4726A; }
 
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] { gap: 0; }
@@ -118,7 +119,7 @@ st.markdown("""
     /* Sidebar section labels */
     [data-testid="stSidebar"] h3 {
         font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
-        color: #6C63FF; margin-top: 1rem; margin-bottom: 0.25rem;
+        color: #7FB5A0; margin-top: 1rem; margin-bottom: 0.25rem;
     }
 
     /* Compact table */
@@ -128,7 +129,7 @@ st.markdown("""
     /* Grid legend */
     .grid-legend {
         display: flex; gap: 14px; align-items: center;
-        font-size: 0.78rem; color: #999; margin-bottom: 4px;
+        font-size: 0.78rem; color: #8B919E; margin-bottom: 4px;
     }
     .grid-legend .dot {
         display: inline-block; width: 10px; height: 10px;
@@ -138,7 +139,12 @@ st.markdown("""
     /* Download buttons */
     .stDownloadButton button {
         font-size: 0.8rem; padding: 4px 14px;
-        background: transparent; border: 1px solid #333;
+        background: transparent; border: 1px solid #2D3140;
+        transition: background 0.2s, border-color 0.2s;
+    }
+    .stDownloadButton button:hover {
+        border-color: #7FB5A0;
+        background: rgba(127,181,160,0.08);
     }
 
     /* Hide streamlit branding */
@@ -147,14 +153,23 @@ st.markdown("""
     /* Empty state */
     .empty-state {
         display: flex; flex-direction: column; align-items: center;
-        justify-content: center; min-height: 300px; color: #555;
+        justify-content: center; min-height: 350px; color: #8B919E;
         text-align: center;
+        border: 1px solid rgba(127,181,160,0.25);
+        border-radius: 8px;
     }
     .empty-state p { font-size: 0.9rem; margin: 4px 0; }
-    .empty-state .hint { font-size: 0.78rem; color: #888; }
+    .empty-state .hint { font-size: 0.78rem; color: #8B919E; }
 
     /* Metric cards */
     [data-testid="stMetricValue"] { font-size: 1.4rem; }
+
+    /* Run button mint glow */
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {
+        background: #5A9E87;
+        border: none;
+        box-shadow: 0 0 12px rgba(127,181,160,0.3);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -173,8 +188,8 @@ if "config" in st.session_state:
     model_safe = _html.escape(cfg.model_name.upper())
     dataset_safe = _html.escape(cfg.dataset_name.upper())
     st.markdown(
-        f'<div style="background:#1A1D23;border:1px solid #2A2D35;border-radius:4px;'
-        f'padding:6px 14px;font-size:0.78rem;color:#888;margin-bottom:8px;">'
+        f'<div style="background:#1C1F26;border:1px solid #2D3140;border-radius:4px;'
+        f'padding:6px 14px;font-size:0.78rem;color:#8B919E;margin-bottom:8px;">'
         f'{model_safe} &middot; {dataset_safe} &middot; '
         f'{cfg.num_clients} clients &middot; {cfg.num_rounds} rounds &middot; '
         f'Attack: {atk_safe} &middot; Seed: {cfg.seed}</div>',
@@ -228,7 +243,7 @@ def _render_plugin_params(plugin_type, plugin_key):
 
 model_choices = {**SUPPORTED_MODELS, **_prefixed_plugin_choices("models")}
 dataset_choices = {**SUPPORTED_DATASETS, **_prefixed_plugin_choices("datasets")}
-strategy_choices = {**SUPPORTED_STRATEGIES, **_prefixed_plugin_choices("strategies")}
+strategy_choices = {**SUPPORTED_STRATEGIES, **get_plugin_choices("strategies")}
 optimizer_choices = {**SUPPORTED_OPTIMIZERS, **_prefixed_plugin_choices("optimizers")}
 loss_choices = {**SUPPORTED_LOSSES, **_prefixed_plugin_choices("losses")}
 
@@ -318,12 +333,13 @@ with st.sidebar:
         alpha = st.slider("Dirichlet α", 0.01, 10.0, alpha, 0.01,
                           help="Lower values = more heterogeneous data across clients. 0.1 = extreme skew, 1.0 = moderate, 10.0 = nearly IID")
 
-    val_split = st.slider("Validation Split", 0.0, 0.3, 0.1, 0.05,
-                           help="Fraction of training data held out for server-side validation. "
-                                "Per-round evaluation uses this split — test set is reserved for final evaluation only. "
-                                "Set to 0 for legacy behavior (uses test set during training).")
+    st.markdown("---")
 
     with st.expander("FL Parameters", expanded=True):
+        val_split = st.slider("Validation Split", 0.0, 0.3, 0.1, 0.05,
+                               help="Fraction of training data held out for server-side validation. "
+                                    "Per-round evaluation uses this split — test set is reserved for final evaluation only. "
+                                    "Set to 0 for legacy behavior (uses test set during training).")
         c1, c2 = st.columns(2)
         num_clients = c1.slider("Clients", 2, 20, _pd.get("num_clients", DEFAULT_NUM_CLIENTS),
                                 help="Number of federated learning participants")
@@ -425,6 +441,8 @@ with st.sidebar:
                 _sp = _render_plugin_params("strategies", key)
                 if _sp:
                     plugin_params.setdefault("strategies", {})[key] = _sp
+
+    st.markdown("---")
 
     with st.expander("Attack Configuration", expanded=False):
         _p_aidx = _aidx
@@ -644,7 +662,7 @@ with st.sidebar:
     run_button = st.button("Run Simulation", type="primary", width="stretch")
 
 # ── Tabs ─────────────────────────────────────────────────────────────
-tab_sim, tab_results, tab_analysis, tab_anomaly, tab_docs = st.tabs(["Simulation", "Results", "Analysis", "Anomaly Detection", "Docs"])
+tab_sim, tab_results, tab_analysis, tab_anomaly, tab_docs = st.tabs(["Simulation", "Results", "Analysis", "Client Metrics", "Docs"])
 
 # ── Run ──────────────────────────────────────────────────────────────
 # Check if a loaded experiment config should execute
@@ -718,9 +736,10 @@ if _should_run:
         with st.expander("Client Activity Grid", expanded=False):
             st.markdown(
                 '<div class="grid-legend">'
-                '<span><span class="dot" style="background:#2ecc71"></span>Benign</span>'
-                '<span><span class="dot" style="background:#e74c3c"></span>Attacked</span>'
-                '<span><span class="dot" style="background:#95a5a6"></span>Idle</span>'
+                '<span><span class="dot" style="background:#7FB5A0"></span>Benign</span>'
+                '<span><span class="dot" style="background:#D4726A"></span>Attacked</span>'
+                '<span><span class="dot" style="background:#D4A76A"></span>Excluded (TP)</span>'
+                '<span><span class="dot" style="background:#6B7280"></span>Idle</span>'
                 '</div>', unsafe_allow_html=True,
             )
             ph_grid = st.empty()
@@ -747,7 +766,16 @@ if _should_run:
                         all_accuracies[s][-1] = mv
                         break
 
-            grid_data[s].append([event.client_statuses.get(c, "idle") for c in range(config.num_clients)])
+            # Merge training status with exclusion info from the strategy
+            _round_grid = []
+            for c in range(config.num_clients):
+                _st = event.client_statuses.get(c, "idle")
+                if _st == "attacked" and c in event.client_excluded:
+                    _st = "excluded"  # attacked AND caught by the strategy
+                elif _st == "benign" and c in event.client_excluded:
+                    _st = "false_positive"  # benign but incorrectly excluded
+                _round_grid.append(_st)
+            grid_data[s].append(_round_grid)
 
             total = (event.num_rounds + 1) * event.num_strategies
             done = event.strategy_idx * (event.num_rounds + 1) + event.round_num + 1
@@ -1176,126 +1204,104 @@ with tab_analysis:
             'This tab shows accuracy comparisons, trust heatmaps, and client PCA.</p>'
             '</div>', unsafe_allow_html=True)
 
-# ── Anomaly Detection Tab ─────────────────────────────────────────
+# ── Client Metrics Tab ────────────────────────────────────────────
 with tab_anomaly:
     if "results" in st.session_state:
         results = st.session_state["results"]
         cfg = st.session_state.get("config")
-
-        # Determine malicious clients from status history
+        nr = cfg.num_rounds if cfg else 10
+        nc = cfg.num_clients if cfg else 10
         malicious = _extract_malicious_clients(results)
 
+        # Strategy selector
         strat_names_display = [STRATEGY_DISPLAY_NAMES.get(r.strategy_name, r.strategy_name) for r in results]
-        selected_strat = st.selectbox("Strategy", strat_names_display, key="anomaly_strat")
+        sel_col, metric_col = st.columns([1, 2])
+        selected_strat = sel_col.selectbox("Strategy", strat_names_display, key="anomaly_strat")
         sel_idx = strat_names_display.index(selected_strat)
         sel_result = results[sel_idx]
 
-        if sel_result.anomaly_history:
-            nr = cfg.num_rounds if cfg else 10
-            nc = cfg.num_clients if cfg else 10
+        # Build list of available per-client metrics for this strategy
+        available_metrics = {}
+        if sel_result.trust_history:
+            available_metrics["Trust Scores"] = sel_result.trust_history
+        if sel_result.reputation_history:
+            available_metrics["Reputation Scores"] = sel_result.reputation_history
+        if sel_result.strategy_scores_history:
+            # Reshape strategy_scores_history (list of per-round dicts) into per-client lists
+            _score_by_client = {}
+            for rnd_scores in sel_result.strategy_scores_history:
+                for cid, score in rnd_scores.items():
+                    _score_by_client.setdefault(cid, []).append(score)
+            if _score_by_client:
+                available_metrics["Strategy Scores"] = _score_by_client
 
-            c1, c2 = st.columns(2)
-            with c1:
-                fig = plot_removal_f1_over_rounds(sel_result.anomaly_history, nr)
-                st.plotly_chart(fig, width="stretch")
-            with c2:
-                fig = plot_exclusion_timeline(sel_result.anomaly_history, nc, nr, malicious)
-                st.plotly_chart(fig, width="stretch")
-
-            c3, c4 = st.columns(2)
-            with c3:
-                fig = plot_confusion_summary(sel_result.anomaly_summary)
-                st.plotly_chart(fig, width="stretch")
-            with c4:
-                if sel_result.strategy_scores_history:
-                    latest_scores = sel_result.strategy_scores_history[-1]
-                    if latest_scores:
-                        strategy_name = sel_result.strategy_name
-                        threshold = cfg.plugin_params.get("strategies", {}).get("truth_threshold", 0.7) if strategy_name in ("reputation", "custom:Reputation") else None
-                        fig = plot_client_score_distribution(latest_scores, malicious, threshold=threshold)
-                        st.plotly_chart(fig, width="stretch")
-                    else:
-                        st.info("No client scores available for this strategy.")
-                else:
-                    st.info("No client scores available for this strategy.")
-
-            # Summary metrics row
-            s = sel_result.anomaly_summary
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            mc1.metric("Removal F1", f"{s.get('cumulative_f1', 0):.3f}")
-            mc2.metric("Precision", f"{s.get('cumulative_precision', 0):.3f}")
-            mc3.metric("Recall", f"{s.get('cumulative_recall', 0):.3f}")
-            mc4.metric("Total Rounds", s.get("total_rounds", 0))
-
-            # Anomaly Event Log
-            st.markdown("### Event Log")
-            if sel_result.anomaly_history:
-                log_entries = []
-                for rnd_idx, rdata in enumerate(sel_result.anomaly_history):
-                    excluded = rdata.get("excluded", [])
-                    if excluded:
-                        for cid in excluded:
-                            is_correct = cid in malicious
-                            status = "TP (correct)" if is_correct else "FP (false alarm)"
-                            log_entries.append({
-                                "Round": rnd_idx + 1,
-                                "Client": f"C{cid}",
-                                "Action": "Excluded",
-                                "Status": status,
-                                "Precision": f"{rdata.get('precision', 0):.3f}",
-                                "Recall": f"{rdata.get('recall', 0):.3f}",
-                                "F1": f"{rdata.get('f1', 0):.3f}",
-                            })
-                if log_entries:
-                    df_log = pd.DataFrame(log_entries)
-                    st.dataframe(df_log, width="stretch", height=300)
-                else:
-                    st.caption("No exclusion events recorded.")
-
-            # Per-client summary with sparklines
-            st.markdown("### Per-Client Summary")
-            if sel_result.trust_history:
-                client_summary = []
-                for cid in sorted(sel_result.trust_history.keys()):
-                    trust_vals = sel_result.trust_history[cid]
-                    is_mal = cid in malicious
-                    final_trust = trust_vals[-1] if trust_vals else 0
-                    avg_trust = sum(trust_vals) / len(trust_vals) if trust_vals else 0
-                    excluded_count = sum(
-                        1 for rdata in sel_result.anomaly_history
-                        if cid in rdata.get("excluded", [])
-                    )
-                    client_summary.append({
-                        "Client": f"C{cid}{'*' if is_mal else ''}",
-                        "Status": "Malicious" if is_mal else "Benign",
-                        "Final Trust": f"{final_trust:.3f}",
-                        "Avg Trust": f"{avg_trust:.3f}",
-                        "Times Excluded": excluded_count,
-                    })
-                st.dataframe(pd.DataFrame(client_summary), width="stretch")
-
-                # Per-client sparklines
-                st.markdown("### Client Metric Trajectories")
-                fig = plot_client_sparklines(
-                    sel_result.trust_history,
-                    sel_result.reputation_history,
-                    malicious, nr,
-                )
-                st.plotly_chart(fig, width="stretch")
+        # Metric picker
+        metric_options = list(available_metrics.keys())
+        if not metric_options:
+            st.caption("No per-client metrics available for this strategy.")
         else:
-            st.markdown(
-                '<div class="empty-state">'
-                '<p>No anomaly detection data for this strategy</p>'
-                '<p class="hint">Select a robust strategy (Krum, Reputation, or Bulyan) that performs '
-                'client exclusion.<br>FedAvg, Trimmed Mean, Median, and RFA include all clients and '
-                'produce no exclusion metrics.</p>'
-                '</div>', unsafe_allow_html=True)
+            selected_metric = metric_col.selectbox(
+                "Client Metric", metric_options, key="client_metric_select",
+                help="Per-client metric to plot over rounds")
+            history = available_metrics[selected_metric]
+
+            # ── Line chart: per-client metric over rounds ──
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            from visualization import fedsim_layout_defaults, COLOR_BENIGN, COLOR_ATTACKED, COLOR_TEXT_MUTED
+            for cid in sorted(history.keys()):
+                vals = history[cid]
+                is_mal = cid in malicious
+                fig.add_trace(go.Scatter(
+                    x=list(range(1, len(vals) + 1)),
+                    y=vals,
+                    mode="lines+markers",
+                    name=f"C{cid}{'*' if is_mal else ''}",
+                    line=dict(
+                        width=2 if is_mal else 1.5,
+                        color=COLOR_ATTACKED if is_mal else COLOR_BENIGN,
+                        dash="dash" if is_mal else "solid",
+                    ),
+                    marker=dict(size=4),
+                    opacity=0.9 if is_mal else 0.6,
+                ))
+            fig.update_layout(
+                **fedsim_layout_defaults(),
+                title=f"{selected_metric} per Client",
+                xaxis_title="Round", yaxis_title=selected_metric,
+                template="plotly_dark", height=380,
+                margin=dict(t=40, b=50, l=60, r=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="right", x=1, font=dict(size=9)),
+            )
+            if selected_metric in ("Trust Scores", "Reputation Scores"):
+                fig.update_yaxes(range=[0, 1.05])
+            st.plotly_chart(fig, width="stretch")
+
+        # ── Exclusion metrics (only for strategies that exclude clients) ──
+        has_exclusions = sel_result.anomaly_history and any(
+            r.get("excluded") for r in sel_result.anomaly_history
+        )
+        if has_exclusions:
+            with st.expander("Exclusion Metrics", expanded=False):
+                s = sel_result.anomaly_summary
+                mc1, mc2, mc3 = st.columns(3)
+                mc1.metric("Removal F1", f"{s.get('cumulative_f1', 0):.3f}")
+                mc2.metric("Precision", f"{s.get('cumulative_precision', 0):.3f}")
+                mc3.metric("Recall", f"{s.get('cumulative_recall', 0):.3f}")
+
+                ex_col1, ex_col2 = st.columns(2)
+                with ex_col1:
+                    fig = plot_removal_f1_over_rounds(sel_result.anomaly_history, nr)
+                    st.plotly_chart(fig, width="stretch")
+                with ex_col2:
+                    fig = plot_exclusion_timeline(sel_result.anomaly_history, nc, nr, malicious)
+                    st.plotly_chart(fig, width="stretch")
     else:
         st.markdown(
             '<div class="empty-state">'
             '<p>No simulation data yet</p>'
-            '<p class="hint">Configure parameters in the sidebar and click Run Simulation.<br>'
-            'This tab shows client exclusion tracking, removal F1, and confusion matrices.</p>'
+            '<p class="hint">Run a simulation to see per-client metrics here.</p>'
             '</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1305,7 +1311,7 @@ with tab_docs:
     st.markdown("""
     <style>
     .docs-hero {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        background: linear-gradient(135deg, #1C1F26 0%, #232730 50%, #2D3140 100%);
         border-radius: 16px;
         padding: 3rem 2.5rem;
         margin-bottom: 2rem;
@@ -1320,7 +1326,7 @@ with tab_docs:
         right: -20%;
         width: 400px;
         height: 400px;
-        background: radial-gradient(circle, rgba(108,99,255,0.15) 0%, transparent 70%);
+        background: radial-gradient(circle, rgba(127,181,160,0.12) 0%, transparent 70%);
         border-radius: 50%;
     }
     .docs-hero h1 {
@@ -1335,19 +1341,19 @@ with tab_docs:
         max-width: 600px;
     }
     .docs-section {
-        background: #f8f9fa;
+        background: #232730;
         border-radius: 12px;
         padding: 1.8rem 2rem;
         margin-bottom: 1.5rem;
-        border-left: 4px solid #6C63FF;
+        border-left: 4px solid #7FB5A0;
     }
     .docs-section h3 {
         margin-top: 0;
-        color: #1a1a2e;
+        color: #C8CCD4;
         font-size: 1.3rem;
     }
     .docs-section code {
-        background: #e8e6ff;
+        background: rgba(127,181,160,0.15);
         padding: 2px 6px;
         border-radius: 4px;
         font-size: 0.9em;
@@ -1362,26 +1368,26 @@ with tab_docs:
         background: white;
         border-radius: 10px;
         padding: 1.2rem 1.4rem;
-        border: 1px solid #e0e0e0;
+        border: 1px solid #2D3140;
         transition: transform 0.2s, box-shadow 0.2s;
     }
     .docs-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 12px rgba(127,181,160,0.08);
     }
     .docs-card h4 {
         margin: 0 0 0.4rem 0;
-        color: #6C63FF;
+        color: #7FB5A0;
         font-size: 1rem;
     }
     .docs-card p {
         margin: 0;
         font-size: 0.9rem;
-        color: #555;
+        color: #8B919E;
     }
     .docs-badge {
         display: inline-block;
-        background: #6C63FF;
+        background: #7FB5A0;
         color: white;
         padding: 2px 10px;
         border-radius: 12px;

@@ -58,9 +58,10 @@ class KrumStrategy(FedAvg):
         np.maximum(distances, 0, out=distances)  # clamp numerical noise
 
         # Krum score: sum of distances to nearest num_to_select neighbors
-        # Use np.partition for O(n) partial sort instead of O(n log n) full sort
-        k = min(num_to_select + 1, num_clients - 1)
-        partitioned = np.partition(distances, k, axis=1)[:, 1:k + 1]
+        # Set diagonal to inf so self-distance is never among the smallest
+        np.fill_diagonal(distances, np.inf)
+        k = min(num_to_select, num_clients - 1)
+        partitioned = np.partition(distances, k, axis=1)[:, :k]
         scores = partitioned.sum(axis=1).tolist()
 
         if self.multi_krum:

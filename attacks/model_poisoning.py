@@ -29,16 +29,24 @@ def apply_gradient_scaling(parameters: list[np.ndarray], scale_factor: float = 1
     This is the correct gradient scaling attack that amplifies the update direction.
     Falls back to uniform parameter scaling if global_parameters is not available.
     """
-    if global_parameters is not None:
-        scaled = []
-        for local, glob in zip(parameters, global_parameters):
-            if _is_float(local):
-                delta = local - glob
-                scaled.append((glob + scale_factor * delta).astype(local.dtype))
-            else:
-                scaled.append(local.copy())
-        return scaled
-    return [param * scale_factor if _is_float(param) else param.copy() for param in parameters]
+    if global_parameters is None:
+        raise ValueError(
+            "apply_gradient_scaling requires global_parameters to compute update "
+            "deltas. Without it, the attack cannot amplify gradients correctly."
+        )
+    if len(parameters) != len(global_parameters):
+        raise ValueError(
+            f"Parameter list length mismatch: local has {len(parameters)}, "
+            f"global has {len(global_parameters)}"
+        )
+    scaled = []
+    for local, glob in zip(parameters, global_parameters):
+        if _is_float(local):
+            delta = local - glob
+            scaled.append((glob + scale_factor * delta).astype(local.dtype))
+        else:
+            scaled.append(local.copy())
+    return scaled
 
 
 def apply_byzantine_perturbation(parameters: list[np.ndarray], noise_std: float = 1.0,

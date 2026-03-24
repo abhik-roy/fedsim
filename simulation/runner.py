@@ -31,6 +31,32 @@ import types as _types_module
 from anomaly.metrics import AnomalyMetrics
 
 
+class _TransformOverrideSubset(torch.utils.data.Dataset):
+    """Wraps a Subset so that items are returned with a different transform.
+
+    When val data is carved from the training set via random_split, it inherits
+    training augmentations (RandomCrop, RandomFlip, etc.) which hurt eval accuracy.
+    This wrapper applies the test transform instead.
+    """
+    def __init__(self, subset, transform):
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.subset)
+
+    def __getitem__(self, idx):
+        # Access the raw (untransformed) data from the root dataset
+        real_idx = self.subset.indices[idx]
+        root = self.subset.dataset
+        # Temporarily swap the transform
+        orig_transform = getattr(root, "transform", None)
+        root.transform = self.transform
+        item = root[real_idx]
+        root.transform = orig_transform
+        return item
+
+
 def _build_dataset_info(dataset_name: str) -> dict:
     """Assemble dataset_info dict from built-in DATASET_INFO or custom plugin attributes."""
     if dataset_name.startswith("custom:"):
@@ -392,7 +418,7 @@ def _build_optimizer(model, optimizer_name, lr, weight_decay=0.0, **plugin_kwarg
     elif optimizer_name == "adamw":
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     else:  # default: sgd
-        return torch.optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+        return torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
 
 
 def _build_loss(loss_name, **plugin_kwargs):
@@ -481,19 +507,27 @@ def _train_client(model, trainloader, local_epochs, lr, device,
                                     local_epochs, **fit_kwargs)
     elif model_plugin and hasattr(model_plugin, "train_step"):
         # Tier 2a: model plugin per-step control, runner manages epoch/batch loops
+        # NOTE: gradient clipping must happen between backward() and step().
+        # Since plugin.train_step() may call both internally, we wrap it:
+        # we temporarily replace optimizer.step to insert clipping before it.
         model.train()
         total_loss = 0.0
         batch_count = 0
         step_metrics = {"loss": 0.0}
+        _orig_step = optimizer.step
+        def _clipped_step(closure=None):
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRADIENT_CLIP_MAX_NORM)
+            return _orig_step(closure)
+        optimizer.step = _clipped_step
         for epoch in range(local_epochs):
             for batch in trainloader:
                 step_metrics = model_plugin.train_step(model, batch, optimizer,
                                                         device, **plugin_kwargs)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRADIENT_CLIP_MAX_NORM)
                 total_loss += step_metrics.get("loss", 0.0)
                 batch_count += 1
             if scheduler is not None:
                 scheduler.step()
+        optimizer.step = _orig_step
         if batch_count > 0:
             step_metrics["loss"] = total_loss / batch_count
         metrics = step_metrics
@@ -507,19 +541,25 @@ def _train_client(model, trainloader, local_epochs, lr, device,
                                        local_epochs, **fit_kwargs)
     elif strategy_plugin and hasattr(strategy_plugin, "train_step"):
         # Tier 2c: strategy plugin per-step control (NEW)
+        # Wrap optimizer.step with gradient clipping (same pattern as Tier 2a)
         model.train()
         total_loss = 0.0
         batch_count = 0
         step_metrics = {"loss": 0.0}
+        _orig_step = optimizer.step
+        def _clipped_step(closure=None):
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRADIENT_CLIP_MAX_NORM)
+            return _orig_step(closure)
+        optimizer.step = _clipped_step
         for epoch in range(local_epochs):
             for batch in trainloader:
                 step_metrics = strategy_plugin.train_step(model, batch, optimizer,
                                                            device, **strat_kwargs)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRADIENT_CLIP_MAX_NORM)
                 total_loss += step_metrics.get("loss", 0.0)
                 batch_count += 1
             if scheduler is not None:
                 scheduler.step()
+        optimizer.step = _orig_step
         if batch_count > 0:
             step_metrics["loss"] = total_loss / batch_count
         metrics = step_metrics
@@ -781,6 +821,11 @@ def _setup_data(config: SimulationConfig) -> dict:
         train_data, val_data = torch.utils.data.random_split(
             train_dataset, [train_size, val_size], generator=g
         )
+        # The val subset inherits training transforms (RandomCrop, RandomFlip, etc.)
+        # which hurt eval accuracy. Use the test dataset's transform instead.
+        _test_transform = getattr(test_dataset, "transform", None)
+        if _test_transform is not None and hasattr(train_dataset, "transform"):
+            val_data = _TransformOverrideSubset(val_data, _test_transform)
     else:
         train_data = train_dataset
         val_data = None
@@ -905,15 +950,19 @@ def _run_client_round(
     else:
         trainloader = clean_trainloaders[cid]
 
-    client_model = copy.deepcopy(template_model)
-    _set_model_params(client_model, global_params)
-
-    # torch.compile: wraps the model for graph compilation on first forward pass.
-    # Falls back gracefully if compilation fails at runtime (e.g., missing dev headers).
+    # Reuse eval_model as the client training model to avoid GPU memory pressure
+    # from deepcopy. _set_model_params loads full state_dict (params + buffers),
+    # so the model is fully reset to global state each round.
+    # Exception: torch.compile wraps the model, so we must deepcopy in that case.
     compiled = False
     if not getattr(config, '_compile_failed', False) and config.compile_model and hasattr(torch, "compile"):
+        client_model = copy.deepcopy(template_model)
+        _set_model_params(client_model, global_params)
         client_model = torch.compile(client_model)
         compiled = True
+    else:
+        client_model = eval_model
+        _set_model_params(client_model, global_params)
 
     _train_kwargs = dict(
         optimizer_name=config.optimizer,
@@ -975,6 +1024,12 @@ def _run_client_round(
         model_plugin_kwargs=config.plugin_params.get("models", {}),
     )
 
+    # Free GPU memory for compiled models (separate deepcopy)
+    if compiled:
+        del client_model
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
     return updated_params, client_loss, client_acc, status, attack_applied
 
 
@@ -991,7 +1046,10 @@ def _process_round_results(
     succeeds. Returns a dict with all per-round computed data.
     """
     # Compute trust scores before aggregation
-    trust_scores = _compute_trust_scores(client_results, global_params)
+    raw_trust = _compute_trust_scores(client_results, global_params)
+    # Remap index-based keys to actual client IDs
+    cid_list = selected_cids or list(range(len(client_results)))
+    trust_scores = {cid_list[idx]: score for idx, score in raw_trust.items()}
 
     # Notify strategy of current global params before aggregation.
     # In Flower's canonical loop, configure_fit() captures this before distributing
@@ -1010,8 +1068,10 @@ def _process_round_results(
         _set_model_params(global_model, global_params)
 
     # Extract exclusion metadata from strategy return
+    cid_list = selected_cids or list(range(len(client_results)))
     excluded_set = set()
-    included_set = set(range(config.num_clients))
+    # Default to the clients that actually participated this round, not all clients
+    included_set = set(cid_list)
     client_scores_round = {}
     if "excluded_clients" in strategy_metrics:
         excluded_set = set(json.loads(strategy_metrics["excluded_clients"]))
@@ -1027,8 +1087,7 @@ def _process_round_results(
     # count toward TP/FP/TN/FN.
     participating_clients = included_set | excluded_set
     if not participating_clients:
-        # Fallback: if strategy didn't report inclusion metadata, assume all
-        participating_clients = set(range(config.num_clients))
+        participating_clients = set(cid_list)
     anomaly_result = anomaly_tracker.compute_round(
         malicious_clients, excluded_set, participating_clients
     )
@@ -1283,7 +1342,8 @@ def run_simulation(
 
             # Sample clients for this round based on fraction_fit
             all_cids = list(range(config.num_clients))
-            num_selected = max(1, int(config.num_clients * config.fraction_fit))
+            num_selected = max(config.min_fit_clients, int(config.num_clients * config.fraction_fit))
+            num_selected = min(num_selected, config.num_clients)
             if num_selected >= config.num_clients:
                 selected_cids = all_cids
             else:
@@ -1445,9 +1505,9 @@ def run_simulation(
                     client_reputation_scores=reputation_scores,
                     client_excluded=excluded_set,
                     client_included=included_set,
-                    removal_precision=anomaly_result["precision"],
-                    removal_recall=anomaly_result["recall"],
-                    removal_f1=anomaly_result["f1"],
+                    removal_precision=anomaly_result["precision"] if not np.isnan(anomaly_result["precision"]) else 0.0,
+                    removal_recall=anomaly_result["recall"] if not np.isnan(anomaly_result["recall"]) else 0.0,
+                    removal_f1=anomaly_result["f1"] if not np.isnan(anomaly_result["f1"]) else 0.0,
                     strategy_scores=client_scores_round,
                     custom_metrics={**round_custom_metrics,
                                     **{f"eval/{k}": v for k, v in extra_eval_metrics.items()}},

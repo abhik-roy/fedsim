@@ -23,9 +23,9 @@ SUPPORTED_STRATEGIES = {
     "Trimmed Mean": "trimmed_mean",
     "Krum": "krum",
     "Median": "median",
-    "Reputation": "reputation",
     "Bulyan": "bulyan",
     "RFA (Geometric Median)": "rfa",
+    # Reputation is a plugin (custom/strategies/reputation.py) — auto-discovered
 }
 
 PARTITION_TYPES = ["IID", "Non-IID (Dirichlet)"]
@@ -33,7 +33,7 @@ PARTITION_TYPES = ["IID", "Non-IID (Dirichlet)"]
 DEFAULT_MODEL = "resnet18"
 DEFAULT_DATASET = "cifar10"
 DEFAULT_PARTITION_TYPE = "non_iid"
-DEFAULT_STRATEGIES = ["fedavg", "reputation"]
+DEFAULT_STRATEGIES = ["fedavg", "custom:Reputation"]
 DEFAULT_ATTACK = "label_flipping"
 
 DEFAULT_NUM_CLIENTS = 10
@@ -166,14 +166,14 @@ PRESETS = {
         "num_clients": 10, "num_rounds": 15, "local_epochs": 3,
         "learning_rate": 0.01, "partition_type": "non_iid", "alpha": 0.5,
         "strategies": ["fedavg", "trimmed_mean", "krum", "median",
-                        "reputation", "bulyan", "rfa"],
+                        "custom:Reputation", "bulyan", "rfa"],
         "attack_type": "byzantine_perturbation", "malicious_fraction": 0.3,
     },
     "Text Classification": {
         "model": "custom:TextCNN", "dataset": "custom:AG News (4-class)",
         "num_clients": 5, "num_rounds": 10, "local_epochs": 2,
         "learning_rate": 0.01, "partition_type": "iid",
-        "strategies": ["fedavg", "reputation"],
+        "strategies": ["fedavg", "custom:Reputation"],
         "attack_type": "label_flipping", "malicious_fraction": 0.2,
     },
     "Regression": {
