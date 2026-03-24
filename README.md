@@ -54,6 +54,7 @@ pip install -r requirements.txt
 ```bash
 streamlit run app.py
 ```
+<img width="1116" height="1086" alt="Screenshot From 2026-03-23 22-38-23" src="https://github.com/user-attachments/assets/478c9840-1ec7-40ae-a073-981a4bcde7de">
 
 ### Run a Scripted Experiment
 
