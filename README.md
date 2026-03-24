@@ -6,14 +6,6 @@ FEDSIM is a visualization-first platform for simulating, benchmarking, and analy
 
 ## Features
 
-### Simulation Engine
-- **7 aggregation strategies** — FedAvg, Krum, Median, Trimmed Mean, Bulyan, RFA, and Reputation (trust-based client selection with asymmetric temporal updates)
-- **6 attack models** — Label flipping, Gaussian noise, token replacement (data poisoning); weight spiking, gradient scaling, Byzantine perturbation (model poisoning)
-- **Non-IID data** — Dirichlet-based heterogeneous partitioning with tunable concentration (alpha)
-- **Anomaly detection** — TP/FP/TN/FN tracking for client exclusion decisions, removal F1/precision/recall per round
-- **Parallel client training** — ThreadPoolExecutor with CUDA stream support for GPU acceleration
-- **Mixed precision (AMP)** — Float16 training on tensor core GPUs for ~1.5x speedup
-
 ### Dashboard
 - **Live training visualization** — Loss and accuracy curves updated in real-time
 - **Client activity grid** — Per-client, per-round status heatmap (benign/attacked/idle)
