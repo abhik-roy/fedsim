@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Generated reports & large binaries
+*.pdf
+*.png
+*.jpg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FEDSIM data cache
+.fedsim/
+fedsim/data/raw/
+data/raw/
+
+# Temporary files
+*.tmp
+results/*.json
+
+# Claude / superpowers tooling artifacts
+.claude/
+.superpowers/
+docs/superpowers/
